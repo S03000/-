@@ -2602,6 +2602,7 @@ hello@anna.studio · +7 900 000-00-00</textarea>
         <div class="row">
           <div class="field"><label>Корр. счёт (CorrespAcc)</label><input id="qrCorr" value="30101810145250000974" oninput="render()"></div>
           <div class="field"><label>ИНН получателя (PayeeINN)</label><input id="qrInn" value="770000000000" oninput="render()"></div>
+          <div class="field"><label>КПП(KPP)</label><input id="KPP" value="770000000" oninput="render()"></div>
         </div>
         <label style="display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--ink);cursor:pointer;margin-top:4px">
           <input type="checkbox" id="qrUseTotal" checked onchange="render()" style="width:auto">
@@ -2664,9 +2665,10 @@ function buildGostPayload(amountMinor){
   add('BIC', g('qrBic'));
   add('CorrespAcc', g('qrCorr'));
   add('PayeeINN', g('qrInn'));
+  add('KPP', g('KPP'));
   if(amountMinor!=null && amountMinor>0) add('Sum', String(amountMinor));
   const num = (document.getElementById('invNum').value||'').trim();
-  if(num) add('Purpose', 'Оплата по счету № '+num);
+  if(num) add('Purpose', 'num);
   return parts.join('|');
 }
 // Returns an <img> data URL string for a QR of given text, or null
