@@ -2668,7 +2668,7 @@ function buildGostPayload(amountMinor){
   add('KPP', g('KPP'));
   if(amountMinor!=null && amountMinor>0) add('Sum', String(amountMinor));
   const num = (document.getElementById('invNum').value||'').trim();
-  if(num) add('Purpose', 'num);
+  if(num) add('Purpose', num);
   return parts.join('|');
 }
 // Returns an <img> data URL string for a QR of given text, or null
