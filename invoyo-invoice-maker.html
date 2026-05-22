@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Invoyo — Генератор счетов</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Spline+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<style>
+  :root{
+    --ink:#1a1a1a;
+    --ink-soft:#5a5a52;
+    --paper:#fbfaf7;
+    --panel:#ffffff;
+    --line:#e8e5dd;
+    --accent:#3a4a3f;
+    --accent-soft:#eef1ec;
+    --gold:#b08d4f;
+    --radius:14px;
+    --shadow:0 1px 2px rgba(40,38,30,.04),0 8px 28px rgba(40,38,30,.06);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    font-family:'Spline Sans',sans-serif;
+    background:var(--paper);
+    color:var(--ink);
+    -webkit-font-smoothing:antialiased;
+    line-height:1.5;
+  }
+  /* layout */
+  .app{display:grid;grid-template-columns:minmax(360px,440px) 1fr;min-height:100vh}
+  .editor{
+    padding:34px 32px 80px;
+    border-right:1px solid var(--line);
+    overflow-y:auto;
+    max-height:100vh;
+    background:var(--panel);
+  }
+  .preview-wrap{
+    padding:40px;
+    overflow-y:auto;
+    max-height:100vh;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:20px;
+  }
+  /* brand */
+  .brand{display:flex;align-items:center;gap:11px;margin-bottom:6px}
+  .brand-mark{
+    width:34px;height:34px;border-radius:9px;
+    background:var(--accent);color:#fff;
+    display:grid;place-items:center;
+    font-family:'Fraunces',serif;font-weight:600;font-size:19px;
+  }
+  .brand-name{font-family:'Fraunces',serif;font-size:22px;font-weight:600;letter-spacing:-.01em}
+  .brand-tag{font-size:12.5px;color:var(--ink-soft);margin:6px 0 26px}
+  /* sections */
+  .sec{margin-bottom:24px}
+  .sec-title{
+    font-size:11px;text-transform:uppercase;letter-spacing:.12em;
+    color:var(--ink-soft);font-weight:600;margin-bottom:11px;
+    display:flex;align-items:center;gap:8px;
+  }
+  .sec-title::after{content:"";flex:1;height:1px;background:var(--line)}
+  label{display:block;font-size:12px;color:var(--ink-soft);margin-bottom:5px;font-weight:500}
+  input,textarea,select{
+    width:100%;padding:9px 11px;border:1px solid var(--line);
+    border-radius:9px;font-family:inherit;font-size:13.5px;color:var(--ink);
+    background:var(--paper);transition:border-color .15s,box-shadow .15s;
+  }
+  input:focus,textarea:focus,select:focus{
+    outline:none;border-color:var(--accent);
+    box-shadow:0 0 0 3px var(--accent-soft);
+  }
+  textarea{resize:vertical;min-height:54px}
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .field{margin-bottom:11px}
+  /* line items */
+  .item{
+    display:grid;grid-template-columns:1fr 56px 84px 28px;gap:8px;
+    align-items:end;margin-bottom:9px;
+  }
+  .item label{font-size:10.5px}
+  .item-head{
+    display:grid;grid-template-columns:1fr 56px 84px 28px;gap:8px;
+    font-size:10.5px;color:var(--ink-soft);margin-bottom:4px;font-weight:600;
+    text-transform:uppercase;letter-spacing:.05em;
+  }
+  .del{
+    border:none;background:none;cursor:pointer;color:#b6b2a8;
+    font-size:18px;line-height:1;padding:6px 0;transition:color .15s;
+  }
+  .del:hover{color:#c0392b}
+  .add-btn{
+    width:100%;padding:9px;border:1px dashed var(--line);
+    background:none;border-radius:9px;color:var(--accent);
+    font-family:inherit;font-size:13px;font-weight:500;cursor:pointer;
+    transition:all .15s;
+  }
+  .add-btn:hover{border-color:var(--accent);background:var(--accent-soft)}
+  /* totals tweaks */
+  .mini-row{display:grid;grid-template-columns:1fr 90px;gap:10px;align-items:center;margin-bottom:9px}
+  .mini-row label{margin:0}
+  /* actions */
+  .actions{position:sticky;bottom:0;display:flex;gap:10px;padding-top:14px;margin-top:8px;background:linear-gradient(transparent,var(--panel) 30%)}
+  .btn{
+    flex:1;padding:13px;border-radius:11px;border:none;cursor:pointer;
+    font-family:inherit;font-size:14px;font-weight:600;transition:transform .12s,box-shadow .2s,opacity .2s;
+  }
+  .btn:active{transform:translateY(1px)}
+  .btn-primary{background:var(--accent);color:#fff;box-shadow:0 6px 18px rgba(58,74,63,.25)}
+  .btn-primary:hover{box-shadow:0 8px 22px rgba(58,74,63,.34)}
+  .btn-ghost{background:var(--accent-soft);color:var(--accent);flex:0 0 auto;padding:13px 18px}
+  /* preview document */
+  .toolbar{
+    width:100%;max-width:794px;display:flex;justify-content:space-between;
+    align-items:center;color:var(--ink-soft);font-size:12.5px;
+  }
+  .toolbar .zoomnote{display:flex;align-items:center;gap:6px}
+  .page{
+    width:794px;min-height:1123px;background:#fff;
+    box-shadow:var(--shadow);border:1px solid var(--line);
+    padding:64px 60px;position:relative;
+    transform-origin:top center;
+  }
+  .doc-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:46px}
+  .doc-logo{display:flex;align-items:center;gap:13px}
+  .doc-logo-mark{
+    width:54px;height:54px;border-radius:12px;background:var(--accent);color:#fff;
+    display:grid;place-items:center;font-family:'Fraunces',serif;font-weight:600;font-size:27px;overflow:hidden;
+  }
+  .doc-logo-mark img{width:100%;height:100%;object-fit:cover}
+  .doc-from-name{font-family:'Fraunces',serif;font-size:20px;font-weight:600}
+  .doc-from-meta{font-size:12.5px;color:var(--ink-soft);white-space:pre-line;margin-top:3px}
+  .doc-title-block{text-align:right}
+  .doc-title{font-family:'Fraunces',serif;font-size:38px;font-weight:600;letter-spacing:-.02em;line-height:1}
+  .doc-num{font-size:13px;color:var(--ink-soft);margin-top:8px}
+  .doc-parties{display:flex;justify-content:space-between;gap:40px;margin-bottom:38px}
+  .party-label{font-size:10.5px;text-transform:uppercase;letter-spacing:.12em;color:var(--gold);font-weight:600;margin-bottom:7px}
+  .party-name{font-weight:600;font-size:15px}
+  .party-meta{font-size:12.5px;color:var(--ink-soft);white-space:pre-line;margin-top:3px}
+  .dates{text-align:right;font-size:12.5px}
+  .dates div{margin-bottom:5px}
+  .dates b{color:var(--ink);font-weight:600}
+  .dates span{color:var(--ink-soft);margin-right:10px}
+  /* table */
+  table{width:100%;border-collapse:collapse;margin-bottom:26px}
+  thead th{
+    text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.08em;
+    color:var(--ink-soft);font-weight:600;padding:0 0 11px;border-bottom:1.5px solid var(--ink);
+  }
+  thead th.r{text-align:right}
+  tbody td{padding:13px 0;border-bottom:1px solid var(--line);font-size:13.5px;vertical-align:top}
+  tbody td.r{text-align:right;white-space:nowrap}
+  .it-name{font-weight:500}
+  .totals{display:flex;justify-content:flex-end;margin-bottom:40px}
+  .totals-inner{width:300px}
+  .t-row{display:flex;justify-content:space-between;padding:8px 0;font-size:13.5px;color:var(--ink-soft)}
+  .t-row b{color:var(--ink);font-weight:500}
+  .t-grand{
+    display:flex;justify-content:space-between;padding:15px 0 0;margin-top:7px;
+    border-top:2px solid var(--ink);font-family:'Fraunces',serif;
+  }
+  .t-grand .lbl{font-size:16px;font-weight:600;align-self:center}
+  .t-grand .val{font-size:26px;font-weight:600}
+  .doc-foot{border-top:1px solid var(--line);padding-top:22px;display:flex;justify-content:space-between;gap:30px}
+  .foot-block{flex:1}
+  .foot-label{font-size:10.5px;text-transform:uppercase;letter-spacing:.12em;color:var(--gold);font-weight:600;margin-bottom:6px}
+  .foot-text{font-size:12.5px;color:var(--ink-soft);white-space:pre-line}
+  .thanks{position:absolute;bottom:46px;left:60px;right:60px;text-align:center;font-family:'Fraunces',serif;font-style:italic;color:var(--ink-soft);font-size:13.5px}
+  .logo-upload{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--accent);cursor:pointer;margin-top:6px}
+  .logo-upload input{display:none}
+  .hint{font-size:11px;color:#a8a499;margin-top:4px}
+  @media(max-width:900px){
+    .app{grid-template-columns:1fr}
+    .editor{max-height:none;border-right:none;border-bottom:1px solid var(--line)}
+    .preview-wrap{padding:18px;max-height:none}
+    .page{transform:scale(.46);margin:-300px 0}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- ============ EDITOR ============ -->
+  <aside class="editor">
+    <div class="brand">
+      <div class="brand-mark">I</div>
+      <div class="brand-name">Invoyo</div>
+    </div>
+    <p class="brand-tag">Красивые счета за минуту — заполни, посмотри, скачай PDF.</p>
+
+    <div class="sec">
+      <div class="sec-title">Ваши данные</div>
+      <div class="field">
+        <label>Название / Имя</label>
+        <input id="fromName" value="Анна Соколова" oninput="render()">
+      </div>
+      <div class="field">
+        <label>Реквизиты (адрес, ИНН, телефон, e-mail)</label>
+        <textarea id="fromMeta" oninput="render()">ИП Соколова А. В.
+ИНН 770000000000
+hello@anna.studio · +7 900 000-00-00</textarea>
+      </div>
+      <label class="logo-upload">
+        ↑ Загрузить логотип
+        <input type="file" id="logoFile" accept="image/*" onchange="loadLogo(event)">
+      </label>
+      <div class="hint">Если без логотипа — покажем первую букву имени.</div>
+    </div>
+
+    <div class="sec">
+      <div class="sec-title">Клиент</div>
+      <div class="field">
+        <label>Кому выставлен счёт</label>
+        <input id="toName" value="ООО «Лесной двор»" oninput="render()">
+      </div>
+      <div class="field">
+        <label>Реквизиты клиента</label>
+        <textarea id="toMeta" oninput="render()">г. Москва, ул. Примерная, 1
+ИНН 7712345678</textarea>
+      </div>
+    </div>
+
+    <div class="sec">
+      <div class="sec-title">Счёт</div>
+      <div class="row">
+        <div class="field"><label>Номер</label><input id="invNum" value="2026-014" oninput="render()"></div>
+        <div class="field">
+          <label>Валюта</label>
+          <select id="currency" onchange="render()">
+            <option value="₽">₽ Рубль</option>
+            <option value="$">$ Доллар</option>
+            <option value="€">€ Евро</option>
+            <option value="£">£ Фунт</option>
+            <option value="₸">₸ Тенге</option>
+          </select>
+        </div>
+      </div>
+      <div class="row">
+        <div class="field"><label>Дата выставления</label><input type="date" id="dateIssue" oninput="render()"></div>
+        <div class="field"><label>Оплатить до</label><input type="date" id="dateDue" oninput="render()"></div>
+      </div>
+    </div>
+
+    <div class="sec">
+      <div class="sec-title">Позиции</div>
+      <div class="item-head">
+        <span>Описание</span><span>Кол-во</span><span>Цена</span><span></span>
+      </div>
+      <div id="items"></div>
+      <button class="add-btn" onclick="addItem()">+ Добавить позицию</button>
+    </div>
+
+    <div class="sec">
+      <div class="sec-title">Налог и скидка</div>
+      <div class="mini-row"><label>Налог / НДС, %</label><input type="number" id="tax" value="0" min="0" oninput="render()"></div>
+      <div class="mini-row"><label>Скидка, %</label><input type="number" id="disc" value="0" min="0" oninput="render()"></div>
+    </div>
+
+    <div class="sec">
+      <div class="sec-title">Реквизиты для оплаты и заметки</div>
+      <div class="field">
+        <label>Куда платить</label>
+        <textarea id="payTo" oninput="render()">Счёт: 4080 1810 0000 0000 0000
+Банк: Тинькофф · БИК 044525974</textarea>
+      </div>
+      <div class="field">
+        <label>Заметка / условия</label>
+        <textarea id="notes" oninput="render()">Оплата в течение 7 дней. Спасибо за сотрудничество!</textarea>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button class="btn btn-primary" onclick="downloadPDF()">↓ Скачать PDF</button>
+      <button class="btn btn-ghost" onclick="window.print()">Печать</button>
+    </div>
+  </aside>
+
+  <!-- ============ PREVIEW ============ -->
+  <main class="preview-wrap">
+    <div class="toolbar">
+      <span>Живой превью</span>
+      <span class="zoomnote">A4 · обновляется на лету</span>
+    </div>
+    <div class="page" id="page">
+      <!-- filled by render() -->
+    </div>
+  </main>
+</div>
+
+<script>
+let logoData = null;
+let items = [
+  {name:"Дизайн логотипа и фирменного стиля", qty:1, price:45000},
+  {name:"Адаптация для соцсетей (комплект)", qty:1, price:12000},
+  {name:"Правки сверх пакета", qty:3, price:2500},
+];
+
+function money(n, cur){
+  return cur + " " + n.toLocaleString('ru-RU', {minimumFractionDigits:0, maximumFractionDigits:2});
+}
+function fmtDate(v){
+  if(!v) return "—";
+  const d = new Date(v);
+  return d.toLocaleDateString('ru-RU', {day:'2-digit', month:'long', year:'numeric'});
+}
+
+function renderItemsEditor(){
+  const box = document.getElementById('items');
+  box.innerHTML = items.map((it,i)=>`
+    <div class="item">
+      <input value="${escapeHtml(it.name)}" oninput="upd(${i},'name',this.value)" placeholder="Описание">
+      <input type="number" min="0" value="${it.qty}" oninput="upd(${i},'qty',this.value)">
+      <input type="number" min="0" value="${it.price}" oninput="upd(${i},'price',this.value)">
+      <button class="del" onclick="delItem(${i})" title="Удалить">×</button>
+    </div>`).join('');
+}
+function escapeHtml(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+function upd(i,k,v){ items[i][k] = (k==='name')? v : parseFloat(v||0); render(); }
+function addItem(){ items.push({name:"",qty:1,price:0}); renderItemsEditor(); render(); }
+function delItem(i){ items.splice(i,1); renderItemsEditor(); render(); }
+
+function loadLogo(e){
+  const f = e.target.files[0]; if(!f) return;
+  const r = new FileReader();
+  r.onload = ev => { logoData = ev.target.result; render(); };
+  r.readAsDataURL(f);
+}
+
+function render(){
+  const cur = document.getElementById('currency').value;
+  const fromName = document.getElementById('fromName').value;
+  const fromMeta = document.getElementById('fromMeta').value;
+  const toName = document.getElementById('toName').value;
+  const toMeta = document.getElementById('toMeta').value;
+  const invNum = document.getElementById('invNum').value;
+  const tax = parseFloat(document.getElementById('tax').value||0);
+  const disc = parseFloat(document.getElementById('disc').value||0);
+  const payTo = document.getElementById('payTo').value;
+  const notes = document.getElementById('notes').value;
+  const dIssue = document.getElementById('dateIssue').value;
+  const dDue = document.getElementById('dateDue').value;
+
+  const sub = items.reduce((s,it)=> s + (it.qty*it.price), 0);
+  const discAmt = sub * disc/100;
+  const taxable = sub - discAmt;
+  const taxAmt = taxable * tax/100;
+  const grand = taxable + taxAmt;
+
+  const logoHtml = logoData
+    ? `<img src="${logoData}" alt="logo">`
+    : escapeHtml((fromName||"I").trim().charAt(0).toUpperCase());
+
+  const rows = items.map(it=>`
+    <tr>
+      <td class="it-name">${escapeHtml(it.name||'—')}</td>
+      <td class="r">${it.qty}</td>
+      <td class="r">${money(it.price,cur)}</td>
+      <td class="r">${money(it.qty*it.price,cur)}</td>
+    </tr>`).join('');
+
+  let totalsExtra = '';
+  if(disc>0) totalsExtra += `<div class="t-row"><span>Скидка ${disc}%</span><b>−${money(discAmt,cur)}</b></div>`;
+  if(tax>0)  totalsExtra += `<div class="t-row"><span>Налог ${tax}%</span><b>${money(taxAmt,cur)}</b></div>`;
+
+  document.getElementById('page').innerHTML = `
+    <div class="doc-top">
+      <div class="doc-logo">
+        <div class="doc-logo-mark">${logoHtml}</div>
+        <div>
+          <div class="doc-from-name">${escapeHtml(fromName)}</div>
+          <div class="doc-from-meta">${escapeHtml(fromMeta)}</div>
+        </div>
+      </div>
+      <div class="doc-title-block">
+        <div class="doc-title">Счёт</div>
+        <div class="doc-num">№ ${escapeHtml(invNum)}</div>
+      </div>
+    </div>
+
+    <div class="doc-parties">
+      <div>
+        <div class="party-label">Кому</div>
+        <div class="party-name">${escapeHtml(toName)}</div>
+        <div class="party-meta">${escapeHtml(toMeta)}</div>
+      </div>
+      <div class="dates">
+        <div><span>Выставлен</span><b>${fmtDate(dIssue)}</b></div>
+        <div><span>Оплатить до</span><b>${fmtDate(dDue)}</b></div>
+      </div>
+    </div>
+
+    <table>
+      <thead><tr>
+        <th>Описание</th><th class="r">Кол-во</th><th class="r">Цена</th><th class="r">Сумма</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+
+    <div class="totals"><div class="totals-inner">
+      <div class="t-row"><span>Промежуточный итог</span><b>${money(sub,cur)}</b></div>
+      ${totalsExtra}
+      <div class="t-grand"><span class="lbl">Итого к оплате</span><span class="val">${money(grand,cur)}</span></div>
+    </div></div>
+
+    <div class="doc-foot">
+      <div class="foot-block">
+        <div class="foot-label">Реквизиты для оплаты</div>
+        <div class="foot-text">${escapeHtml(payTo)}</div>
+      </div>
+      <div class="foot-block">
+        <div class="foot-label">Заметка</div>
+        <div class="foot-text">${escapeHtml(notes)}</div>
+      </div>
+    </div>
+  `;
+}
+
+async function downloadPDF(){
+  const { jsPDF } = window.jspdf;
+  const page = document.getElementById('page');
+  const canvas = await html2canvas(page, {scale:2, backgroundColor:'#ffffff', useCORS:true});
+  const img = canvas.toDataURL('image/png');
+  const pdf = new jsPDF('p','mm','a4');
+  const w = 210, h = canvas.height * w / canvas.width;
+  pdf.addImage(img, 'PNG', 0, 0, w, h);
+  const num = document.getElementById('invNum').value || 'invoice';
+  pdf.save(`Счёт-${num}.pdf`);
+}
+
+// init dates
+(function(){
+  const today = new Date();
+  const due = new Date(); due.setDate(due.getDate()+7);
+  document.getElementById('dateIssue').value = today.toISOString().slice(0,10);
+  document.getElementById('dateDue').value = due.toISOString().slice(0,10);
+  renderItemsEditor();
+  render();
+})();
+</script>
+</body>
+</html>
